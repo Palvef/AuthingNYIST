@@ -1,0 +1,14 @@
+[Unit]
+Description           = Authenticating utility for auth.tsinghua.edu.cn
+StartLimitIntervalSec = 0
+
+[Service]
+ExecStartPre = -/usr/local/bin/auth-nyist -D deauth
+ExecStartPre = -/usr/local/bin/auth-nyist -D auth
+ExecStartPre = -/usr/local/bin/auth-nyist -D login
+ExecStart    = /usr/local/bin/auth-nyist -D online
+Restart      = always
+RestartSec   = 5
+
+[Install]
+WantedBy = default.target

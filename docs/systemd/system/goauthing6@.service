@@ -1,0 +1,15 @@
+[Unit]
+Description=Authenticating utility for auth.tsinghua.edu.cn
+StartLimitIntervalSec=0
+
+[Service]
+# default config is in ~/.auth-nyist
+ExecStartPre=-/usr/local/bin/auth-nyist -D deauth -6
+ExecStartPre=-/usr/local/bin/auth-nyist -D auth -6
+ExecStart=/usr/local/bin/auth-nyist -D online -6
+User=%i
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy = multi-user.target
