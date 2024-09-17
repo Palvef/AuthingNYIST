@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -42,7 +41,6 @@ func buildChallengeParams(username string, anotherIP string) url.Values {
 
 func buildLoginParams(username, password, token string, logout bool, anotherIP string, acID string) (loginParams url.Values, err error) {
 	ip := anotherIP
-	//Required by wireless network only
 	hmd5 := fmt.Sprintf("%032x", md5.Sum([]byte(password)))
 
 	action := "login"
@@ -58,7 +56,6 @@ func buildLoginParams(username, password, token string, logout bool, anotherIP s
 		delete(rawInfo, "password")
 	}
 	infoJSON, _ := json.Marshal(rawInfo)
-	// fmt.Printf("infoJSON: %s\n", infoJSON)
 
 	loginParams = url.Values{
 		"action":       []string{action},
@@ -78,13 +75,13 @@ func buildLoginParams(username, password, token string, logout bool, anotherIP s
 		return
 	}
 	loginParams.Add("info", "{SRBX1}"+QuirkBase64Encode(*encoded))
-	// fmt.Printf("chksum(raw): %v\n", token+username+token + hmd5+token+acID+token+ip+token+loginParams.Get("n")+token+loginParams.Get("type")+token+loginParams.Get("info"))
+
 	if logout {
 		loginParams.Add("chksum", sha1sum(token+username+token+acID+token+ip+token+loginParams.Get("n")+token+loginParams.Get("type")+token+loginParams.Get("info")))
 	} else {
 		loginParams.Add("chksum", sha1sum(token+username+token+hmd5+token+acID+token+ip+token+loginParams.Get("n")+token+loginParams.Get("type")+token+loginParams.Get("info")))
 	}
-	// fmt.Printf("loginParams: %v\n", loginParams)
+
 	return
 }
 
@@ -138,106 +135,6 @@ func IsOnline(host *UrlProvider, acID string) (online bool, err error, username 
 	}
 	defer resp.Body.Close()
 
-	return
-}
-
-func GetNasID(IP, user, password string) (nasID string, err error) {
-	var netClient = &http.Client{
-		Timeout: time.Second * 2,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			logger.Debugf("REDIRECT \"%v\"\n", req.URL)
-			return errors.New("should not redirect")
-		},
-	}
-	nasID = ""
-	var req *http.Request
-	var resp *http.Response
-	var body []byte
-	data := url.Values{
-		"action":          {"login"},
-		"user_login_name": {user},
-		"user_password":   {fmt.Sprintf("%032x", md5.Sum([]byte(password)))},
-	}
-	api := "http://usereg.tsinghua.edu.cn/do.php"
-	logger.Debugf("POST \"%s\" %v\n", api, data)
-	resp, err = netClient.PostForm(api, data)
-	if err != nil {
-		return
-	}
-	cookies := resp.Cookies()
-	defer resp.Body.Close()
-
-	data = url.Values{
-		"actionType": {"searchNasId"},
-		"ip":         {IP},
-	}
-	api = "http://usereg.tsinghua.edu.cn/ip_login_import.php"
-	encodedData := data.Encode()
-	logger.Debugf("POST \"%s\" %v\n", api, encodedData)
-	req, err = http.NewRequest("POST", api, strings.NewReader(encodedData))
-	if err != nil {
-		return
-	}
-	for _, c := range cookies {
-		req.AddCookie(c)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err = netClient.Do(req)
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-	str := string(body)
-	if str == "fail" {
-		err = errors.New("ip_login_import.php responds with 'fail'")
-		return
-	}
-	if _, err1 := strconv.Atoi(str); err1 != nil {
-		err = errors.New("NAS ID should be a number")
-		return
-	}
-	nasID = str
-	logger.Debugf("nasID=%s\n", nasID)
-	return
-}
-
-func GetAcID(V6 bool) (acID string, err error) {
-	var netClient = &http.Client{
-		Timeout: time.Second * 2,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			logger.Debugf("REDIRECT \"%v\"\n", req.URL)
-			return errors.New("should not redirect")
-		},
-	}
-	acID = ""
-	var resp *http.Response
-	var body []byte
-	url := "http://net.tsinghua.edu.cn/"
-	if V6 {
-		url = "http://mirrors6.tuna.tsinghua.edu.cn/"
-	}
-	logger.Debugf("GET \"%s\"\n", url)
-	resp, err = netClient.Get(url)
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-	regexMatchAcID := regexp.MustCompile(`/index_([0-9]+)\.html`)
-	matches := regexMatchAcID.FindStringSubmatch(string(body))
-	if len(matches) < 2 {
-		err = errors.New("ac_id not found")
-		return
-	}
-	acID = matches[1]
-	logger.Debugf("ac_id=%s\n", acID)
 	return
 }
 

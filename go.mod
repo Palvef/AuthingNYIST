@@ -1,4 +1,4 @@
-module github.com/z4yx/GoAuthing
+module github.com/Palvef/AuthingNYIST
 
 go 1.17
 

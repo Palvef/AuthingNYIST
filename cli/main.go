@@ -14,12 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Palvef/AuthingNYIST/libauth"
 	"github.com/howeyc/gopass"
 	"github.com/juju/loggo"
 	"gopkg.in/urfave/cli.v1"
-
-	"github.com/z4yx/GoAuthing/libauth"
-	"github.com/z4yx/GoAuthing/libtunet"
 )
 
 type Settings struct {
@@ -123,7 +121,6 @@ func requestPasswd() (err error) {
 		fmt.Printf("Password: ")
 		b, err = gopass.GetPasswdMasked()
 		if err != nil {
-			// Handle gopass.ErrInterrupted or getch() read error
 			err = fmt.Errorf("interrupted")
 			return
 		}
@@ -137,11 +134,11 @@ func requestPasswd() (err error) {
 
 func setLoggerLevel(debug bool, daemon bool) {
 	if daemon {
-		_ = loggo.ConfigureLoggers("auth-nyist=ERROR;libtunet=ERROR;libauth=ERROR")
+		_ = loggo.ConfigureLoggers("auth-nyist=ERROR;libauth=ERROR")
 	} else if debug {
-		_ = loggo.ConfigureLoggers("auth-nyist=DEBUG;libtunet=DEBUG;libauth=DEBUG")
+		_ = loggo.ConfigureLoggers("auth-nyist=DEBUG;libauth=DEBUG")
 	} else {
-		_ = loggo.ConfigureLoggers("auth-nyist=INFO;libtunet=INFO;libauth=INFO")
+		_ = loggo.ConfigureLoggers("auth-nyist=INFO;libauth=INFO")
 	}
 }
 
@@ -175,7 +172,6 @@ func parseSettings(c *cli.Context) (err error) {
 	if c.Bool("help") {
 		cli.ShowAppHelpAndExit(c, 0)
 	}
-	// Early debug flag setting (have debug messages when access config file)
 	setLoggerLevel(c.GlobalBool("debug"), c.GlobalBool("daemonize"))
 
 	cf := locateConfigFile(c)
@@ -189,12 +185,11 @@ func parseSettings(c *cli.Context) (err error) {
 		}
 	}
 	mergeCliSettings(c)
-	// Late debug flag setting
 	setLoggerLevel(settings.Debug, settings.Daemon)
 	return
 }
 
-func runHook(c *cli.Context) {
+func runHook() {
 	if settings.HookSucc != "" {
 		logger.Debugf("Run hook \"%s\"\n", settings.HookSucc)
 		cmd := exec.Command(settings.HookSucc)
@@ -203,69 +198,34 @@ func runHook(c *cli.Context) {
 		}
 	}
 }
-
-func keepAliveLoop(c *cli.Context, campusOnly bool) (ret error) {
-	logger.Infof("Accessing websites periodically to keep you online")
-
-	accessTarget := func(url string, ipv6 bool) (ret error) {
-		network := "tcp4"
-		if ipv6 {
-			network = "tcp6"
-		}
-		netClient := &http.Client{
-			Timeout: time.Second * 10,
-			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, _network, addr string) (net.Conn, error) {
-					logger.Debugf("DialContext %s (%s)\n", addr, network)
-					myDial := &net.Dialer{
-						Timeout:       6 * time.Second,
-						KeepAlive:     0,
-						FallbackDelay: -1, // disable RFC 6555 Fast Fallback
-					}
-					return myDial.DialContext(ctx, network, addr)
-				},
-			},
-		}
-		resp, ret := netClient.Head(url)
-		if ret != nil {
-			return
-		}
-		defer resp.Body.Close()
-		logger.Debugf("HTTP status code %d\n", resp.StatusCode)
-		return
+func cmdAuth(c *cli.Context) {
+	logout := c.Bool("logout")
+	err := authUtil(c, logout)
+	if err != nil {
+		logger.Errorf("Auth error: %s", err)
+		os.Exit(1)
 	}
-	targetInside := "https://www.nyist.edu.cn/"
-	targetOutside := "https://www.baidu.com/"
-
-	stop := make(chan int, 1)
-	defer func() { stop <- 1 }()
-	go func() {
-		// Keep IPv6 online, ignore any errors
-		for {
-			select {
-			case <-stop:
-				break
-			case <-time.After(13 * time.Minute):
-				_ = accessTarget(targetInside, true)
-			}
-		}
-	}()
-
-	for {
-		target := targetOutside
-		if campusOnly || settings.V6 {
-			target = targetInside
-		}
-		if ret = accessTarget(target, settings.V6); ret != nil {
-			ret = fmt.Errorf("accessing %s failed (re-login might be required): %w", target, ret)
-			break
-		}
-		// Consumes ~5MB per day
-		time.Sleep(3 * time.Second)
-	}
-	return
 }
 
+func cmdDeauth(c *cli.Context) {
+	err := authUtil(c, true)
+	if err != nil {
+		logger.Errorf("Deauth error: %s\n", err)
+		os.Exit(1)
+	}
+}
+func cmdKeepalive(c *cli.Context) {
+	err := parseSettings(c)
+	if err != nil {
+		logger.Errorf("Parse setting error: %s\n", err)
+		os.Exit(1)
+	}
+	err = keepAliveLoop(c.Bool("auth"))
+	if err != nil {
+		logger.Errorf("Keepalive error: %s\n", err)
+		os.Exit(1)
+	}
+}
 func authUtil(c *cli.Context, logout bool) error {
 	err := parseSettings(c)
 	if err != nil {
@@ -282,20 +242,6 @@ func authUtil(c *cli.Context, logout bool) error {
 		} else {
 			domain = "auth.nyist.edu.cn"
 		}
-	}
-
-	if len(settings.Ip) == 0 && len(settings.AcID) == 0 {
-		// Probe the ac_id parameter
-		// We do this only in Tsinghua, since it requires access to usereg.t.e.c/net.t.e.c
-		// For v6, ac_id must be probed using different url
-		retAcID, err := libauth.GetAcID(settings.V6)
-		// FIXME: currently when logout, the GetAcID is actually broken.
-		// Though logout does not require correct ac_id now, it can break.
-		if err != nil && !logout {
-			logger.Debugf("Failed to get ac_id: %v", err)
-			logger.Debugf("Login may fail with 'IP地址异常'.")
-		}
-		acID = retAcID
 	}
 
 	host := libauth.NewUrlProvider(domain, settings.Insecure)
@@ -321,12 +267,6 @@ func authUtil(c *cli.Context, logout bool) error {
 		if err != nil {
 			return err
 		}
-		if len(settings.Ip) != 0 && len(settings.Host) == 0 && len(settings.AcID) == 0 {
-			// Auth for another IP requires correct NAS ID since July 2020
-			if retNasID, err := libauth.GetNasID(settings.Ip, settings.Username, settings.Password); err == nil {
-				acID = retNasID
-			}
-		}
 	}
 
 	// if settings.Campus {
@@ -340,12 +280,12 @@ func authUtil(c *cli.Context, logout bool) error {
 	}
 	if err == nil {
 		logger.Infof("%s Successfully!\n", action)
-		runHook(c)
+		runHook()
 		if settings.KeepOn {
 			if len(settings.Ip) != 0 {
 				logger.Errorf("Cannot keep another IP online\n")
 			} else {
-				return keepAliveLoop(c, true)
+				return keepAliveLoop(true)
 			}
 		}
 	} else {
@@ -354,81 +294,66 @@ func authUtil(c *cli.Context, logout bool) error {
 	return err
 }
 
-func cmdAuth(c *cli.Context) {
-	logout := c.Bool("logout")
-	err := authUtil(c, logout)
-	if err != nil {
-		logger.Errorf("Auth error: %s", err)
-		os.Exit(1)
-	}
-}
+func keepAliveLoop(campusOnly bool) (ret error) {
+	logger.Infof("Accessing websites periodically to keep you online")
 
-func cmdDeauth(c *cli.Context) {
-	err := authUtil(c, true)
-	if err != nil {
-		logger.Errorf("Deauth error: %s\n", err)
-		os.Exit(1)
-	}
-}
-
-func cmdLogin(c *cli.Context) error {
-	err := parseSettings(c)
-	if err != nil {
-		logger.Errorf("Parse setting error: %s\n", err)
-		os.Exit(1)
-	}
-	err = requestUser()
-	if err != nil {
-		logger.Errorf("Request user error: %s\n", err)
-		os.Exit(1)
-	}
-	err = requestPasswd()
-	if err != nil {
-		logger.Errorf("Request password error: %s\n", err)
-		os.Exit(1)
-	}
-	success, err := libtunet.LoginLogout(settings.Username, settings.Password, false)
-	if success {
-		logger.Infof("Login Successfully!\n")
-		runHook(c)
-		if settings.KeepOn {
-			return keepAliveLoop(c, false)
+	accessTarget := func(url string, ipv6 bool) (ret error) {
+		network := "tcp4"
+		if ipv6 {
+			network = "tcp6"
 		}
-	} else {
-		logger.Errorf("Login error: %s\n", err)
-		os.Exit(1)
+		netClient := &http.Client{
+			Timeout: time.Second * 10,
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, _network, addr string) (net.Conn, error) {
+					logger.Debugf("DialContext %s (%s)\n", addr, network)
+					myDial := &net.Dialer{
+						Timeout:       6 * time.Second,
+						KeepAlive:     0,
+						FallbackDelay: -1,
+					}
+					return myDial.DialContext(ctx, network, addr)
+				},
+			},
+		}
+		resp, ret := netClient.Head(url)
+		if ret != nil {
+			return
+		}
+		defer resp.Body.Close()
+		logger.Debugf("HTTP status code %d\n", resp.StatusCode)
+		return
 	}
-	return err
-}
+	targetInside := "https://www.nyist.edu.cn/"
+	targetOutside := "https://www.baidu.com/"
 
-func cmdLogout(c *cli.Context) {
-	err := parseSettings(c)
-	if err != nil {
-		logger.Errorf("Parse setting error: %s\n", err)
-		os.Exit(1)
-	}
-	//err := requestUser()
-	success, err := libtunet.LoginLogout(settings.Username, settings.Password, true)
-	if success {
-		logger.Infof("Logout Successfully!\n")
-		runHook(c)
-	} else {
-		logger.Errorf("Logout Failed: %s\n", err)
-		os.Exit(1)
-	}
-}
+	stop := make(chan int, 1)
+	defer func() { stop <- 1 }()
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return // Exits the goroutine when receiving a stop signal
+			case <-time.After(13 * time.Minute):
+				_ = accessTarget(targetInside, true)
+			}
+		}
+	}()
 
-func cmdKeepalive(c *cli.Context) {
-	err := parseSettings(c)
-	if err != nil {
-		logger.Errorf("Parse setting error: %s\n", err)
-		os.Exit(1)
+	// Label for the outer loop
+loop:
+	for {
+		target := targetOutside
+		if campusOnly || settings.V6 {
+			target = targetInside
+		}
+		if ret = accessTarget(target, settings.V6); ret != nil {
+			ret = fmt.Errorf("accessing %s failed (re-login might be required): %w", target, ret)
+			break loop // Break out of the outer loop using the label
+		}
+		time.Sleep(3 * time.Second)
 	}
-	err = keepAliveLoop(c, c.Bool("auth"))
-	if err != nil {
-		logger.Errorf("Keepalive error: %s\n", err)
-		os.Exit(1)
-	}
+	return
 }
 
 func main() {
@@ -442,8 +367,8 @@ func main() {
 		Version:  "2.0.0",
 		HideHelp: true,
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "username, u", Usage: "your TUNET account `name`"},
-			&cli.StringFlag{Name: "password, p", Usage: "your TUNET `password`"},
+			&cli.StringFlag{Name: "username, u", Usage: "your portal account `name`"},
+			&cli.StringFlag{Name: "password, p", Usage: "your portal `password`"},
 			&cli.StringFlag{Name: "config-file, c", Usage: "`path` to your config file, default ~/.auth-nyist"},
 			&cli.StringFlag{Name: "hook-success", Usage: "command line to be executed in shell after successful login/out"},
 			&cli.BoolFlag{Name: "daemonize, D", Usage: "run without reading username/password from standard input; less log"},
@@ -451,7 +376,7 @@ func main() {
 			&cli.BoolFlag{Name: "help, h", Usage: "print the help"},
 		},
 		Commands: []cli.Command{
-			cli.Command{
+			{
 				Name:  "auth",
 				Usage: "(default) Auth via auth.nyist.edu.cn",
 				Flags: []cli.Flag{
@@ -460,12 +385,12 @@ func main() {
 				},
 				Action: cmdAuth,
 			},
-			cli.Command{
+			{
 				Name:   "deauth",
 				Usage:  "De-authenticate via auth.nyist.edu.cn",
 				Action: cmdDeauth,
 			},
-			cli.Command{
+			{
 				Name:   "keepalive",
 				Usage:  "Keep the connection alive by pinging a server",
 				Action: cmdKeepalive,
