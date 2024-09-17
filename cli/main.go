@@ -189,7 +189,7 @@ func parseSettings(c *cli.Context) (err error) {
 	return
 }
 
-func runHook(c *cli.Context) {
+func runHook() {
 	if settings.HookSucc != "" {
 		logger.Debugf("Run hook \"%s\"\n", settings.HookSucc)
 		cmd := exec.Command(settings.HookSucc)
@@ -220,7 +220,7 @@ func cmdKeepalive(c *cli.Context) {
 		logger.Errorf("Parse setting error: %s\n", err)
 		os.Exit(1)
 	}
-	err = keepAliveLoop(c, c.Bool("auth"))
+	err = keepAliveLoop(c.Bool("auth"))
 	if err != nil {
 		logger.Errorf("Keepalive error: %s\n", err)
 		os.Exit(1)
@@ -242,20 +242,6 @@ func authUtil(c *cli.Context, logout bool) error {
 		} else {
 			domain = "auth.nyist.edu.cn"
 		}
-	}
-
-	if len(settings.Ip) == 0 && len(settings.AcID) == 0 {
-		// Probe the ac_id parameter
-		// We do this only in Tsinghua, since it requires access to usereg.t.e.c/net.t.e.c
-		// For v6, ac_id must be probed using different url
-		retAcID, err := libauth.GetAcID(settings.V6)
-		// FIXME: currently when logout, the GetAcID is actually broken.
-		// Though logout does not require correct ac_id now, it can break.
-		if err != nil && !logout {
-			logger.Debugf("Failed to get ac_id: %v", err)
-			logger.Debugf("Login may fail with 'IP地址异常'.")
-		}
-		acID = retAcID
 	}
 
 	host := libauth.NewUrlProvider(domain, settings.Insecure)
@@ -281,12 +267,6 @@ func authUtil(c *cli.Context, logout bool) error {
 		if err != nil {
 			return err
 		}
-		if len(settings.Ip) != 0 && len(settings.Host) == 0 && len(settings.AcID) == 0 {
-			// Auth for another IP requires correct NAS ID since July 2020
-			if retNasID, err := libauth.GetNasID(settings.Ip, settings.Username, settings.Password); err == nil {
-				acID = retNasID
-			}
-		}
 	}
 
 	// if settings.Campus {
@@ -300,12 +280,12 @@ func authUtil(c *cli.Context, logout bool) error {
 	}
 	if err == nil {
 		logger.Infof("%s Successfully!\n", action)
-		runHook(c)
+		runHook()
 		if settings.KeepOn {
 			if len(settings.Ip) != 0 {
 				logger.Errorf("Cannot keep another IP online\n")
 			} else {
-				return keepAliveLoop(c, true)
+				return keepAliveLoop(true)
 			}
 		}
 	} else {
@@ -314,7 +294,7 @@ func authUtil(c *cli.Context, logout bool) error {
 	return err
 }
 
-func keepAliveLoop(c *cli.Context, campusOnly bool) (ret error) {
+func keepAliveLoop(campusOnly bool) (ret error) {
 	logger.Infof("Accessing websites periodically to keep you online")
 
 	accessTarget := func(url string, ipv6 bool) (ret error) {
@@ -353,13 +333,15 @@ func keepAliveLoop(c *cli.Context, campusOnly bool) (ret error) {
 		for {
 			select {
 			case <-stop:
-				break
+				return // Exits the goroutine when receiving a stop signal
 			case <-time.After(13 * time.Minute):
 				_ = accessTarget(targetInside, true)
 			}
 		}
 	}()
 
+	// Label for the outer loop
+loop:
 	for {
 		target := targetOutside
 		if campusOnly || settings.V6 {
@@ -367,7 +349,7 @@ func keepAliveLoop(c *cli.Context, campusOnly bool) (ret error) {
 		}
 		if ret = accessTarget(target, settings.V6); ret != nil {
 			ret = fmt.Errorf("accessing %s failed (re-login might be required): %w", target, ret)
-			break
+			break loop // Break out of the outer loop using the label
 		}
 		time.Sleep(3 * time.Second)
 	}
@@ -394,7 +376,7 @@ func main() {
 			&cli.BoolFlag{Name: "help, h", Usage: "print the help"},
 		},
 		Commands: []cli.Command{
-			cli.Command{
+			{
 				Name:  "auth",
 				Usage: "(default) Auth via auth.nyist.edu.cn",
 				Flags: []cli.Flag{
@@ -403,12 +385,12 @@ func main() {
 				},
 				Action: cmdAuth,
 			},
-			cli.Command{
+			{
 				Name:   "deauth",
 				Usage:  "De-authenticate via auth.nyist.edu.cn",
 				Action: cmdDeauth,
 			},
-			cli.Command{
+			{
 				Name:   "keepalive",
 				Usage:  "Keep the connection alive by pinging a server",
 				Action: cmdKeepalive,
