@@ -437,11 +437,9 @@ func main() {
 		UsageText: `auth-nyist [options]
 	 auth-nyist [options] auth [auth_options]
 	 auth-nyist [options] deauth [auth_options]
-	 auth-nyist [options] login
-	 auth-nyist [options] logout
 	 auth-nyist [options] online [online_options]`,
 		Usage:    "Authenticating utility for NYIST",
-		Version:  "2.2.1",
+		Version:  "2.0.0",
 		HideHelp: true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "username, u", Usage: "your TUNET account `name`"},
@@ -459,64 +457,25 @@ func main() {
 				Flags: []cli.Flag{
 					&cli.StringFlag{Name: "ip", Usage: "authenticating for specified IP address"},
 					&cli.BoolFlag{Name: "no-check, n", Usage: "skip online checking, always send login request"},
-					&cli.BoolFlag{Name: "logout, o", Usage: "de-auth of the online account (behaves the same as deauth command, for backward-compatibility)"},
-					&cli.BoolFlag{Name: "ipv6, 6", Usage: "authenticating for IPv6 (auth6.tsinghua)"},
-					&cli.BoolFlag{Name: "campus-only, C", Usage: "auth only, no auto-login (v4 only)"},
-					&cli.StringFlag{Name: "host", Usage: "use customized hostname of srun4000"},
-					&cli.BoolFlag{Name: "insecure", Usage: "use http instead of https"},
-					&cli.BoolFlag{Name: "keep-online, k", Usage: "keep online after login"},
-					&cli.StringFlag{Name: "ac-id", Usage: "use specified ac_id"},
 				},
 				Action: cmdAuth,
 			},
 			cli.Command{
-				Name:  "deauth",
-				Usage: "De-auth via auth.nyist.edu.cn",
-				Flags: []cli.Flag{
-					&cli.StringFlag{Name: "ip", Usage: "authenticating for specified IP address"},
-					&cli.BoolFlag{Name: "no-check, n", Usage: "skip online checking, always send logout request"},
-					&cli.BoolFlag{Name: "ipv6, 6", Usage: "authenticating for IPv6 (auth6.tsinghua)"},
-					&cli.StringFlag{Name: "host", Usage: "use customized hostname of srun4000"},
-					&cli.BoolFlag{Name: "insecure", Usage: "use http instead of https"},
-					&cli.StringFlag{Name: "ac-id", Usage: "use specified ac_id"},
-				},
+				Name:   "deauth",
+				Usage:  "De-authenticate via auth.nyist.edu.cn",
 				Action: cmdDeauth,
 			},
-
 			cli.Command{
-				Name:  "login",
-				Usage: "Login via auth.nyist.edu.cn",
-				Flags: []cli.Flag{
-					&cli.BoolFlag{Name: "keep-online, k", Usage: "keep online after login"},
-				},
-				Action: cmdLogin,
-			},
-			cli.Command{
-				Name:   "logout",
-				Usage:  "Logout via auth.nyist.edu.cn",
-				Action: cmdLogout,
-			},
-			cli.Command{
-				Name:  "online",
-				Usage: "Keep your computer online",
-				Flags: []cli.Flag{
-					&cli.BoolFlag{Name: "auth, a", Usage: "keep the Auth online only"},
-					&cli.BoolFlag{Name: "ipv6, 6", Usage: "keep only ipv6 connection online"},
-				},
+				Name:   "keepalive",
+				Usage:  "Keep the connection alive by pinging a server",
 				Action: cmdKeepalive,
 			},
 		},
-		Action: cmdAuth,
-		Authors: []cli.Author{
-			{Name: "Yuxiang Zhang", Email: "yuxiang.zhang@tuna.tsinghua.edu.cn"},
-			{Name: "Nogeek", Email: "ritou11@gmail.com"},
-			{Name: "ZenithalHourlyRate", Email: "i@zenithal.me"},
-			{Name: "Jiajie Chen", Email: "c@jia.je"},
-			{Name: "KomeijiOcean", Email: "oceans2000@126.com"},
-			{Name: "Sharzy L", Email: "me@sharzy.in"},
-			{Name: "Palve", Email: "i@palve.moe"},
-		},
 	}
 
-	_ = app.Run(os.Args)
+	err := app.Run(os.Args)
+	if err != nil {
+		logger.Errorf("Run error: %s\n", err)
+		os.Exit(1)
+	}
 }
