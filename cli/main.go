@@ -19,7 +19,6 @@ import (
 	"gopkg.in/urfave/cli.v1"
 
 	"github.com/z4yx/GoAuthing/libauth"
-	"github.com/z4yx/GoAuthing/libtunet"
 )
 
 type Settings struct {
@@ -328,10 +327,6 @@ func authUtil(c *cli.Context, logout bool) error {
 			}
 		}
 	}
-
-	// if settings.Campus {
-	// 	settings.Username += "@tsinghua"
-	// }
 
 	err = libauth.LoginLogout(settings.Username, settings.Password, host, logout, settings.Ip, acID)
 	action := "Login"
