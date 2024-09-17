@@ -17,8 +17,6 @@ import (
 	"github.com/howeyc/gopass"
 	"github.com/juju/loggo"
 	"gopkg.in/urfave/cli.v1"
-
-	"github.com/z4yx/GoAuthing/libauth"
 )
 
 type Settings struct {
@@ -258,45 +256,6 @@ func keepAliveLoop(c *cli.Context, campusOnly bool) (ret error) {
 		time.Sleep(3 * time.Second)
 	}
 	return
-}
-
-func authUtil(c *cli.Context, logout bool) error {
-	err := parseSettings(c)
-	if err != nil {
-		return err
-	}
-
-	if logout {
-		libauth.Logout(settings.Username, settings.Ip, settings.AcID, settings.Campus)
-		fmt.Println("Logged out successfully")
-		return nil
-	}
-
-	err = requestUser()
-	if err != nil {
-		return err
-	}
-	err = requestPasswd()
-	if err != nil {
-		return err
-	}
-
-	ip := settings.Ip
-	if settings.NoCheck {
-		ip = ""
-	}
-	ret, err := libauth.Login(settings.Username, settings.Password, ip, settings.AcID, settings.Insecure, settings.V6, settings.Campus)
-	if err != nil {
-		return fmt.Errorf("auth failed (%s)", err)
-	}
-
-	fmt.Printf("Auth succeeded, your IP is %s\n", ret.UserIP)
-	runHook(c)
-
-	if settings.KeepOn {
-		return keepAliveLoop(c, settings.Campus)
-	}
-	return nil
 }
 
 func main() {
