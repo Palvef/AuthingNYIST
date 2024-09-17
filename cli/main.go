@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Palvef/AuthingNYIST/libauth"
 	"github.com/howeyc/gopass"
 	"github.com/juju/loggo"
 	"gopkg.in/urfave/cli.v1"
@@ -196,6 +197,121 @@ func runHook(c *cli.Context) {
 			logger.Errorf("Hook execution failed: %v\n", err)
 		}
 	}
+}
+func cmdAuth(c *cli.Context) {
+	logout := c.Bool("logout")
+	err := authUtil(c, logout)
+	if err != nil {
+		logger.Errorf("Auth error: %s", err)
+		os.Exit(1)
+	}
+}
+
+func cmdDeauth(c *cli.Context) {
+	err := authUtil(c, true)
+	if err != nil {
+		logger.Errorf("Deauth error: %s\n", err)
+		os.Exit(1)
+	}
+}
+func cmdKeepalive(c *cli.Context) {
+	err := parseSettings(c)
+	if err != nil {
+		logger.Errorf("Parse setting error: %s\n", err)
+		os.Exit(1)
+	}
+	err = keepAliveLoop(c, c.Bool("auth"))
+	if err != nil {
+		logger.Errorf("Keepalive error: %s\n", err)
+		os.Exit(1)
+	}
+}
+func authUtil(c *cli.Context, logout bool) error {
+	err := parseSettings(c)
+	if err != nil {
+		return err
+	}
+	acID := "1"
+	if len(settings.AcID) != 0 {
+		acID = settings.AcID
+	}
+	domain := settings.Host
+	if len(settings.Host) == 0 {
+		if settings.V6 {
+			domain = "auth.nyist.edu.cn"
+		} else {
+			domain = "auth.nyist.edu.cn"
+		}
+	}
+
+	if len(settings.Ip) == 0 && len(settings.AcID) == 0 {
+		// Probe the ac_id parameter
+		// We do this only in Tsinghua, since it requires access to usereg.t.e.c/net.t.e.c
+		// For v6, ac_id must be probed using different url
+		retAcID, err := libauth.GetAcID(settings.V6)
+		// FIXME: currently when logout, the GetAcID is actually broken.
+		// Though logout does not require correct ac_id now, it can break.
+		if err != nil && !logout {
+			logger.Debugf("Failed to get ac_id: %v", err)
+			logger.Debugf("Login may fail with 'IP地址异常'.")
+		}
+		acID = retAcID
+	}
+
+	host := libauth.NewUrlProvider(domain, settings.Insecure)
+	if len(settings.Ip) == 0 && !settings.NoCheck {
+		online, _, username := libauth.IsOnline(host, acID)
+		if logout && online {
+			settings.Username = username
+		}
+		if online && !logout {
+			logger.Infof("Currently online!")
+			return nil
+		} else if !online && logout {
+			logger.Infof("Currently offline!")
+			return nil
+		}
+	}
+	err = requestUser()
+	if err != nil {
+		return err
+	}
+	if !logout {
+		err = requestPasswd()
+		if err != nil {
+			return err
+		}
+		if len(settings.Ip) != 0 && len(settings.Host) == 0 && len(settings.AcID) == 0 {
+			// Auth for another IP requires correct NAS ID since July 2020
+			if retNasID, err := libauth.GetNasID(settings.Ip, settings.Username, settings.Password); err == nil {
+				acID = retNasID
+			}
+		}
+	}
+
+	// if settings.Campus {
+	// 	settings.Username += "@tsinghua"
+	// }
+
+	err = libauth.LoginLogout(settings.Username, settings.Password, host, logout, settings.Ip, acID)
+	action := "Login"
+	if logout {
+		action = "Logout"
+	}
+	if err == nil {
+		logger.Infof("%s Successfully!\n", action)
+		runHook(c)
+		if settings.KeepOn {
+			if len(settings.Ip) != 0 {
+				logger.Errorf("Cannot keep another IP online\n")
+			} else {
+				return keepAliveLoop(c, true)
+			}
+		}
+	} else {
+		err = fmt.Errorf("%s Failed: %w", action, err)
+	}
+	return err
 }
 
 func keepAliveLoop(c *cli.Context, campusOnly bool) (ret error) {
