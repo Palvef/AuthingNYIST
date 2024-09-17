@@ -32,8 +32,8 @@ COMMANDS:
      keepalive  Keep the connection alive by pinging a server
 
 GLOBAL OPTIONS:
-   --username name, -u name          your TUNET account name
-   --password password, -p password  your TUNET password
+   --username name, -u name          your portal account name
+   --password password, -p password  your portal password
    --config-file path, -c path       path to your config file, default ~/.auth-nyist
    --hook-success value              command line to be executed in shell after successful login/out
    --daemonize, -D                   run without reading username/password from standard input; less log

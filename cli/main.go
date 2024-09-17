@@ -367,8 +367,8 @@ func main() {
 		Version:  "2.0.0",
 		HideHelp: true,
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "username, u", Usage: "your TUNET account `name`"},
-			&cli.StringFlag{Name: "password, p", Usage: "your TUNET `password`"},
+			&cli.StringFlag{Name: "username, u", Usage: "your portal account `name`"},
+			&cli.StringFlag{Name: "password, p", Usage: "your portal `password`"},
 			&cli.StringFlag{Name: "config-file, c", Usage: "`path` to your config file, default ~/.auth-nyist"},
 			&cli.StringFlag{Name: "hook-success", Usage: "command line to be executed in shell after successful login/out"},
 			&cli.BoolFlag{Name: "daemonize, D", Usage: "run without reading username/password from standard input; less log"},
