@@ -15,54 +15,21 @@ Simply try `./auth-nyist`, then enter your user name and password.
 
 ```help
 NAME:
-   auth-nyist - Authenticating utility for Tsinghua
+   auth-nyist - Authenticating utility for NYIST
 
 USAGE:
    auth-nyist [options]
    auth-nyist [options] auth [auth_options]
    auth-nyist [options] deauth [auth_options]
-   auth-nyist [options] login
-   auth-nyist [options] logout
    auth-nyist [options] online [online_options]
 
 VERSION:
-   2.2.1
-
-AUTHORS:
-   Yuxiang Zhang <yuxiang.zhang@tuna.tsinghua.edu.cn>
-   Nogeek <ritou11@gmail.com>
-   ZenithalHourlyRate <i@zenithal.me>
-   Jiajie Chen <c@jia.je>
-   KomeijiOcean <oceans2000@126.com>
-   Sharzy L <me@sharzy.in>
-   Palve <i@palve.moe>
+   2.0.0
 
 COMMANDS:
-     auth    (default) Auth via auth.nyist.edu.cn
-       OPTIONS:
-         --ip value         authenticating for specified IP address
-         --no-check, -n     skip online checking, always send login request
-         --logout, -o       de-auth of the online account (behaves the same as deauth command, for backward-compatibility)
-         --ipv6, -6         authenticating for IPv6 (auth.nyist.edu.cn)
-         --campus-only, -C  auth only, no auto-login (v4 only)
-         --host value       use customized hostname of srun4000
-         --insecure         use http instead of https
-         --keep-online, -k  keep online after login
-         --ac-id value      use specified ac_id
-     deauth  De-auth via auth.nyist.edu.cn
-       OPTIONS:
-         --ip value      authenticating for specified IP address
-         --no-check, -n  skip online checking, always send logout request
-         --ipv6, -6      authenticating for IPv6 (auth.nyist.edu.cn)
-         --host value    use customized hostname of srun4000
-         --insecure      use http instead of https
-         --ac-id value   use specified ac_id
-     login   Login via auth.nyist.edu.cn
-     logout  Logout via auth.nyist.edu.cn
-     online  Keep your computer online
-       OPTIONS:
-         --auth, -a  keep the Auth online only
-         --ipv6, -6  keep only ipv6 connection online
+     auth       (default) Auth via auth.nyist.edu.cn
+     deauth     De-authenticate via auth.nyist.edu.cn
+     keepalive  Keep the connection alive by pinging a server
 
 GLOBAL OPTIONS:
    --username name, -u name          your TUNET account name
