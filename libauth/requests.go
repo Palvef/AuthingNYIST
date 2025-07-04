@@ -93,7 +93,15 @@ func GetJSON(baseUrl string, params url.Values) (string, error) {
 	}
 	url := baseUrl + "?" + params.Encode()
 	logger.Debugf("GET \"%s\"\n", url)
-	resp, err := netClient.Get(url)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "auth-nyist-cli")
+	logger.Debugf("User-Agent: auth-nyist-cli\n")
+
+	resp, err := netClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -129,7 +137,15 @@ func IsOnline(host *UrlProvider, acID string) (online bool, err error, username 
 	}
 	url := host.OnlineCheckUriBase() + "?" + params.Encode()
 	logger.Debugf("GET \"%s\"\n", url)
-	resp, err := netClient.Get(url)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("User-Agent", "auth-nyist-cli")
+	logger.Debugf("User-Agent: auth-nyist-cli\n")
+
+	resp, err := netClient.Do(req)
 	if err != nil {
 		return
 	}

@@ -316,7 +316,14 @@ func keepAliveLoop(campusOnly bool) (ret error) {
 				},
 			},
 		}
-		resp, ret := netClient.Head(url)
+
+		req, ret := http.NewRequest("HEAD", url, nil)
+		if ret != nil {
+			return
+		}
+		req.Header.Set("User-Agent", "auth-nyist-cli")
+
+		resp, ret := netClient.Do(req)
 		if ret != nil {
 			return
 		}
