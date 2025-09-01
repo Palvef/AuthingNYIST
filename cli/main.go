@@ -295,10 +295,8 @@ func authUtil(c *cli.Context, logout bool) error {
 
 func keepAliveLoop(c *cli.Context) (ret error) {
 	//var campusOnly bool = c.Bool("campusonly")
-	//保留 campusonly 上下文
 	logger.Infof("Checking connectivity to NYIST Library...")
 
-	// socket 检查网络通不
 	checkConnection := func(ip string, port int, timeout time.Duration) error {
 		address := fmt.Sprintf("%s:%d", ip, port)
 		conn, err := net.DialTimeout("tcp", address, timeout)
@@ -314,7 +312,6 @@ func keepAliveLoop(c *cli.Context) (ret error) {
 		return nil
 	}
 
-	// 校内图书馆 IP + 端口
 	ip := "122.207.209.6"
 	port := 8080
 
