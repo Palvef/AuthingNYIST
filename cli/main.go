@@ -2,12 +2,11 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -220,7 +219,7 @@ func cmdKeepalive(c *cli.Context) {
 		logger.Errorf("Parse setting error: %s\n", err)
 		os.Exit(1)
 	}
-	err = keepAliveLoop(c.Bool("auth"))
+	err = keepAliveLoop(c)
 	if err != nil {
 		logger.Errorf("Keepalive error: %s\n", err)
 		os.Exit(1)
@@ -285,7 +284,7 @@ func authUtil(c *cli.Context, logout bool) error {
 			if len(settings.Ip) != 0 {
 				logger.Errorf("Cannot keep another IP online\n")
 			} else {
-				return keepAliveLoop(true)
+				return keepAliveLoop(c)
 			}
 		}
 	} else {
@@ -294,73 +293,44 @@ func authUtil(c *cli.Context, logout bool) error {
 	return err
 }
 
-func keepAliveLoop(campusOnly bool) (ret error) {
-	logger.Infof("Accessing websites periodically to keep you online")
+func keepAliveLoop(c *cli.Context) (ret error) {
+	//var campusOnly bool = c.Bool("campusonly")
+	//保留 campusonly 上下文
+	logger.Infof("Checking connectivity to NYIST Library...")
 
-	accessTarget := func(url string, ipv6 bool) (ret error) {
-		network := "tcp4"
-		if ipv6 {
-			network = "tcp6"
+	// socket 检查网络通不
+	checkConnection := func(ip string, port int, timeout time.Duration) error {
+		address := fmt.Sprintf("%s:%d", ip, port)
+		conn, err := net.DialTimeout("tcp", address, timeout)
+		if err != nil {
+			var nErr net.Error
+			if errors.As(err, &nErr) && nErr.Timeout() {
+				return fmt.Errorf("%s timeout", address)
+			}
+			return fmt.Errorf("connect %s error: %v", address, err)
 		}
-		netClient := &http.Client{
-			Timeout: time.Second * 10,
-			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, _network, addr string) (net.Conn, error) {
-					logger.Debugf("DialContext %s (%s)\n", addr, network)
-					myDial := &net.Dialer{
-						Timeout:       6 * time.Second,
-						KeepAlive:     0,
-						FallbackDelay: -1,
-					}
-					return myDial.DialContext(ctx, network, addr)
-				},
-			},
-		}
-
-		req, ret := http.NewRequest("HEAD", url, nil)
-		if ret != nil {
-			return
-		}
-		req.Header.Set("User-Agent", "auth-nyist-cli")
-
-		resp, ret := netClient.Do(req)
-		if ret != nil {
-			return
-		}
-		defer resp.Body.Close()
-		logger.Debugf("HTTP status code %d\n", resp.StatusCode)
-		return
+		_ = conn.Close()
+		logger.Debugf("connect %s success", address)
+		return nil
 	}
-	targetInside := "https://www.nyist.edu.cn/"
-	targetOutside := "https://www.baidu.com/"
 
-	stop := make(chan int, 1)
-	defer func() { stop <- 1 }()
-	go func() {
-		for {
-			select {
-			case <-stop:
-				return // Exits the goroutine when receiving a stop signal
-			case <-time.After(13 * time.Minute):
-				_ = accessTarget(targetInside, true)
+	// 校内图书馆 IP + 端口
+	ip := "122.207.209.6"
+	port := 8080
+
+	interval := 5 * time.Second // 间隔
+
+	for {
+		if err := checkConnection(ip, port, 2*time.Second); err != nil {
+			logger.Warningf("Connect %s:%d error: %v", ip, port, err)
+
+			// Authhhhhing!
+			if authErr := authUtil(c, false); authErr != nil {
+				logger.Errorf("auth error: %v", authErr)
 			}
 		}
-	}()
-
-	// Label for the outer loop
-loop:
-	for {
-		target := targetOutside
-		if campusOnly || settings.V6 {
-			target = targetInside
-		}
-		if ret = accessTarget(target, settings.V6); ret != nil {
-			ret = fmt.Errorf("accessing %s failed (re-login might be required): %w", target, ret)
-			break loop // Break out of the outer loop using the label
-		}
-		time.Sleep(3 * time.Second)
+		time.Sleep(interval)
 	}
-	return
 }
 
 func main() {
