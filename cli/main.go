@@ -32,7 +32,6 @@ type Settings struct {
 	Daemon   bool   `json:"daemonize"`
 	Debug    bool   `json:"debug"`
 	AcID     string `json:"acId"`
-	Campus   bool   `json:"campusOnly"`
 }
 
 var logger = loggo.GetLogger("auth-nyist")
@@ -85,7 +84,6 @@ func mergeCliSettings(c *cli.Context) {
 	if len(merged.AcID) == 0 {
 		merged.AcID = settings.AcID
 	}
-	merged.Campus = settings.Campus || c.Bool("campus-only")
 	settings = merged
 	logger.Debugf("Settings Username: \"%s\"\n", settings.Username)
 	logger.Debugf("Settings Ip: \"%s\"\n", settings.Ip)
@@ -98,7 +96,6 @@ func mergeCliSettings(c *cli.Context) {
 	logger.Debugf("Settings Daemon: %t\n", settings.Daemon)
 	logger.Debugf("Settings Debug: %t\n", settings.Debug)
 	logger.Debugf("Settings AcID: \"%s\"\n", settings.AcID)
-	logger.Debugf("Settings Campus: %t\n", settings.Campus)
 }
 
 func requestUser() (err error) {
@@ -268,10 +265,6 @@ func authUtil(c *cli.Context, logout bool) error {
 		}
 	}
 
-	// if settings.Campus {
-	// 	settings.Username += "@tsinghua"
-	// }
-
 	err = libauth.LoginLogout(settings.Username, settings.Password, host, logout, settings.Ip, acID)
 	action := "Login"
 	if logout {
@@ -294,7 +287,6 @@ func authUtil(c *cli.Context, logout bool) error {
 }
 
 func keepAliveLoop(c *cli.Context) (ret error) {
-	//var campusOnly bool = c.Bool("campusonly")
 	logger.Infof("Checking connectivity to NYIST Library...")
 
 	checkConnection := func(ip string, port int, timeout time.Duration) error {

@@ -1,5 +1,5 @@
 [Unit]
-Description           = Authenticating utility for auth.tsinghua.edu.cn
+Description           = Authenticating utility for auth.nyist.edu.cn
 StartLimitIntervalSec = 0
 
 [Service]

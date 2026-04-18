@@ -1,5 +1,5 @@
 #!/bin/sh /etc/rc.common
-# Authenticating utility for auth.tsinghua.edu.cn
+# Authenticating utility for auth.nyist.edu.cn
 # This init script is used explicitly with OpenWRT
 
 USE_PROCD=1

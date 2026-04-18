@@ -56,8 +56,7 @@ Write a config file to store your username & password or other options in the fo
   "noCheck": false,
   "insecure": false,
   "daemonize": false,
-  "acId": "",
-  "campusOnly": false
+  "acId": ""
 }
 ```
 
@@ -86,8 +85,8 @@ For OpenWRT users, there are two options available: `goauthing` loading the conf
 
 ```shell
 touch /etc/config/goauthing
-uci set goauthing.config.username='<YOUR-TUNET-ACCOUNT-NAME>'
-uci set goauthing.config.password='<YOUR-TUNET-PASSWORD>'
+uci set goauthing.config.username='<YOUR-NYIST-ACCOUNT-NAME>'
+uci set goauthing.config.password='<YOUR-NYIST-PASSWORD>'
 uci commit goauthing
 /etc/init.d/goauthing enable
 /etc/init.d/goauthing start
@@ -106,6 +105,4 @@ go build -o auth-nyist github.com/Palvef/AuthingNYIST/cli
 
 This project was inspired by the following projects:
 
-- <https://github.com/jiegec/auth-tsinghua>
-- <https://github.com/Berrysoft/TsinghuaNet>
 - <https://github.com/z4yx/GoAuthing>
